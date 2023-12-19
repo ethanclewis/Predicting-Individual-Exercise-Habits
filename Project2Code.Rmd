@@ -1,0 +1,229 @@
+---
+title: "Project 2"
+author: "Ethan Lewis"
+date: "10/31/2021"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+```
+
+```{r}
+library(ggplot2)
+```
+
+```{r}
+source("http://www.openintro.org/stat/data/cdc.R")
+# LOAD IN DATA
+```
+
+```{r}
+ get_logitplot <- function(x, y, xname, bins, formulahere){
+
+    # Step 1 : Create storage space needed for the loop
+    nbins <- length(bins)
+    probs.each <-NULL
+
+    # Step 2: Obtain the probability
+    for(i in 1:nbins){
+      if( i < nbins){
+        scores.in <- which(x< bins[i+1] & x >= bins[i])
+      } else{
+        scores.in <- which(x> bins[i])
+      }
+      numerator  <- length(which(y[scores.in]==1))
+      denominator      <- length(which(y[scores.in]==0))
+      probs.each <- c(probs.each,ifelse(numerator>0 & denominator>0,numerator/denominator,0))
+    }
+
+    #  Step 3: Convert to the log Odds
+    log.RR.each <- log(probs.each)
+
+    to.remove <- which(log.RR.each=="-Inf")
+    log.RR.each <-log.RR.each[-to.remove]
+    bins <- bins[-to.remove]
+
+    dataHere <-data.frame(c(bins), c(log.RR.each))
+
+    ggplot(dataHere, aes(x =bins, y = log.RR.each)) + geom_point() + geom_smooth(method = "lm", formula = formulahere, se = FALSE)+labs(x = xname, y = "Log Odds")
+ }
+# CREATE get_logitplot FUNCTION
+```
+
+## Executive Summary
+
+No Code
+
+## Section 1: Introduction
+
+No Code
+
+## Section 2: Exploratory Data Analysis
+
+```{r, results='hide'}
+summary(cdc)
+# SUMMARY OF cdc 
+```
+
+```{r}
+knitr::kable(table(cdc$exerany), col.names=c("Exercise", "Count"), caption = "'exerany' Distribution")
+# exerany COUNT TABLE
+```
+
+```{r}
+heightEDA <- get_logitplot(x=cdc$height , y=cdc$exerany, xname = "Height (in.)", bins = seq(from = 48, to = 93, by = 3), formula = y ~ x) + labs(title="Figure 2.1")
+# EDA height
+```
+
+```{r}
+weightEDA <- get_logitplot(x=cdc$weight , y=cdc$exerany, xname = "Weight (lbs.)", bins = seq(from = 68, to = 500, by = 10), formula = y ~ poly(x,2)) + labs(title="Figure 2.2")
+# EDA weight
+```
+
+```{r}
+wtdesireEDA <- get_logitplot(x=cdc$wtdesire , y=cdc$exerany, xname = "Desired Weight (lbs.)", bins = seq(from = 68, to = 680, by = 10), formula = y ~ poly(x,2)) + labs(title="Figure 2.3")
+# EDA wtdesire
+```
+
+```{r}
+ageEDA <- get_logitplot(x=cdc$age , y=cdc$exerany, xname = "Age", bins = seq(from = 18, to = 99, by = 1), formula = y ~ x) + labs(title="Figure 2.4")
+# EDA age
+```
+
+```{r}
+gridExtra::grid.arrange(heightEDA,weightEDA,wtdesireEDA,ageEDA, ncol = 2)
+```
+
+```{r, fig.asp=0.6}
+par(mfrow = c(1,2))
+
+mosaicplot(gender~exerany, data = cdc, xlab = "Gender", ylab = "Exercise in Past Month" , main = "Figure 2.5")
+
+mosaicplot(smoke100~exerany, data = cdc, xlab = "Previously Smoked 100 Cigarettes", ylab = "Exercise in Past Month" , main = "Figure 2.6")
+# EDA gender AND smoke100
+```
+
+```{r, fig.asp=0.5}
+ggplot(cdc, aes(x= exerany, fill = factor(hlthplan))) + geom_histogram(bins=10, color = "black") +  facet_wrap( ~ hlthplan, ncol=2) + labs(title="Figure 2.7: Health Coverage", x="Exercise in Past Month") + scale_x_continuous(breaks=c(0,1))
+# EDA hlthplan
+```
+
+```{r}
+levels(cdc$genhlth)[levels(cdc$genhlth)=="very good"] <- "excellent"
+# COMBINE 'excellent' AND 'very good' LEVELS AS 'excellent'
+
+mosaicplot(genhlth~exerany, data = cdc, xlab = "General Health Self Evaluation", ylab = "Exercise in Past Month" , main = "Figure 2.8")
+# NEW EDA genhlth
+```
+
+## Section 3: Modeling 
+
+$Y_{i}$ ~ Bernoulli($\pi_{i}$)
+
+$$log\left(\frac{\pi_i}{1-\pi_i}\right) = \beta_0 + \beta_1(Height_i) + \beta_2(Weight_i) + \beta_3 (Weight_i^{2}) + \beta_4(DesiredWeight_i) + \beta_5(DesiredWeight_i^{2}) + \beta_6(Age_i) +$$
+$$\beta_7(GenderF_i) + \beta_8(HealthCoverage_i) + \beta_9(Smoke100_i) + \beta_{10}(GoodHealth_i) + \beta_{11}(FairHealth_i) + \beta_{12}(PoorHealth_i)$$
+
+```{r, results='hide'}
+model1 <- glm(exerany~height+poly(weight,2)+poly(wtdesire,2)+age+gender+hlthplan+smoke100+genhlth, data = cdc, family = "binomial")
+summary(model1)
+# FIT FULL MODEL, model1, AND RUN SUMMARY
+```
+
+```{r, results='hide'}
+BIC(model1)
+# model1 BIC
+```
+
+$Y_{i}$ ~ Bernoulli($\pi_{i}$)
+
+$$log\left(\frac{\pi_i}{1-\pi_i}\right) = \beta_0 + \beta_1(Height_i) + \beta_2(Weight_i) + \beta_3(Weight_i^2) + \beta_4(Age_i) +$$
+$$\beta_5(HealthCoverage_i) + \beta_6(GoodHealth_i) + \beta_7(FairHealth_i) + \beta_8(PoorHealth_i)$$
+
+```{r, results='hide'}
+model2 <- glm(exerany~height+weight+I(weight^2)+age+hlthplan+genhlth, data = cdc, family = "binomial")
+summary(model2)
+# FIT FULL MODEL, model1, AND RUN SUMMARY
+```
+
+```{r, results='hide'}
+BIC(model2)
+# model2 BIC
+```
+
+(1) $H_O:$ Model 1, the full model, is not a better fit 
+
+    $H_A:$ Model 1, the full model, is a better fit 
+
+(2) $\widehat{D_{Model1}}$ = 21315 where $p_{Model1}$ = 13
+
+    $\widehat{D_{Model2}}$ = 21322 where $p_{Model2}$ = 9
+
+(3) G = 21322 - 21315 = 7
+
+(4) G ~ $\chi^2(4)$
+
+```{r, results='hide'}
+pchisq(7, df = 4, lower.tail = FALSE)
+# CALCULATE P-VALUE
+```
+
+$$log\left(\frac{\hat{\pi_i}}{1-\hat{\pi_i}}\right) = -3.146 + 0.07545(Height_i) - 0.001794(Weight_i) - 0.000007715(Weight_i^2) - 0.006703(Age_i) +$$ 
+$$0.4392(HealthCoverage_i) - 0.5714(GoodHealth_i) - 0.9747(FairHealth_i) - 1.534(PoorHealth_i)$$
+
+
+```{r, results='hide', message=FALSE}
+confint(model2, level = 0.95)
+# 95% CONFIDENCE INTERVALS FOR MODEL 2
+```
+
+- $\beta_0$: (-3.80561, -2.48915)
+
+- $\beta_1(Height_i)$: (0.06542, 0.085501)
+
+- $\beta_2(Weight_i)$: (-0.006364, 0.002833)
+
+- $\beta_3(Weight_i^2)$: (-0.00001932, 0.000003697)
+
+- $\beta_4(Age_i)$: (-0.008716, -0.0046884)
+
+- $\beta_5(HealthCoverage_i)$: (0.34246, 0.535313)
+
+- $\beta_6(GoodHealth_i)$: (-0.64672, -0.49592)
+
+- $\beta_7(FairHealth_i)$: (-1.0791, -0.87012)
+
+- $\beta_8(PoorHealth_i)$:(-1.69902, -1.36959)
+
+## Section 4: Prediction
+
+$$\hat{\pi_1} = \frac{e^{-3.146 + 0.07545(72) - 0.001794(190) - - 0.000007715(36100)- 0.006703(26) + 0.4392 - 0.5714}}{1+ e^{-3.146 + 0.07545(72) - 0.001794(190) - - 0.000007715(36100)- 0.006703(26) + 0.4392 - 0.5714}}$$
+
+$$\hat{\pi_1} = 0.87186$$
+
+```{r}
+set.seed(279)
+preds <- data.frame(predict(model2))
+preds[preds > 0] <- 1
+preds[preds < 0] <- 0
+# CREATE preds 
+```
+
+```{r, results='hide'}
+table("Prediction" = preds$predict.model2., "Actual" = cdc$exerany)
+# preds CONFUSION MATRIX
+```
+
+$CER_{total} = \frac{4553+425}{20000} = 24.89\%$
+
+$CER_{NoExercise} = \frac{4553}{5086} = 89.52\%$
+
+$CER_{Exercise} = \frac{425}{14914} = 2.85\%$
+
+## Section 5: Conclusion
+
+No Code 
+
+
+
+
